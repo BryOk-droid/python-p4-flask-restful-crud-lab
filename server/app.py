@@ -26,16 +26,20 @@ class Plants(Resource):
     def post(self):
         data = request.get_json()
 
-        new_plant = Plant(
-            name=data['name'],
-            image=data['image'],
-            price=data['price'],
-        )
-
-        db.session.add(new_plant)
-        db.session.commit()
-
-        return make_response(new_plant.to_dict(), 201)
+        try:
+            new_plant = Plant(
+                name=data['name'],
+                image=data['image'],
+                price=data['price'],
+                
+            )
+            db.session.add(new_plant)
+            db.session.commit()
+            return make_response(new_plant.to_dict(), 201)
+        except KeyError as e:
+            return make_response(jsonify({"errors": f"Missing required field: {e}"}), 400)
+        except Exception as e:
+            return make_response(jsonify({"errors": str(e)}), 400)
 
 
 api.add_resource(Plants, '/plants')
@@ -44,8 +48,49 @@ api.add_resource(Plants, '/plants')
 class PlantByID(Resource):
 
     def get(self, id):
-        plant = Plant.query.filter_by(id=id).first().to_dict()
-        return make_response(jsonify(plant), 200)
+        plant = Plant.query.filter_by(id=id).first()
+        if not plant:
+            return make_response(jsonify({"error": "Plant not found"}), 404)
+        return make_response(jsonify(plant.to_dict()), 200)
+
+    
+    def patch(self, id):
+        plant = Plant.query.filter_by(id=id).first()
+
+        if not plant:
+            return make_response(jsonify({"error": "Plant not found"}), 404)
+
+        data = request.get_json()
+
+        try:
+            for attr in data:
+            
+                if hasattr(plant, attr):
+                    setattr(plant, attr, data[attr])
+                else:
+                    return make_response(jsonify({"errors": f"Invalid attribute: {attr}"}), 400)
+
+            db.session.add(plant) 
+            db.session.commit()
+            return make_response(plant.to_dict(), 200)
+        except Exception as e:
+            db.session.rollback() 
+            return make_response(jsonify({"errors": str(e)}), 400)
+
+   
+    def delete(self, id):
+        plant = Plant.query.filter_by(id=id).first()
+
+        if not plant:
+            return make_response(jsonify({"error": "Plant not found"}), 404)
+
+        try:
+            db.session.delete(plant)
+            db.session.commit()
+            return make_response('', 204) 
+        except Exception as e:
+            db.session.rollback()
+            return make_response(jsonify({"errors": str(e)}), 400)
 
 
 api.add_resource(PlantByID, '/plants/<int:id>')
